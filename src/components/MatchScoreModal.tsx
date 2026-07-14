@@ -20,7 +20,9 @@ export default function MatchScoreModal({
   onReset,
   onClose,
 }: Props) {
-  const pairs = validScorePairs(config)
+  const raceTo = match.raceTo ?? config.raceTo
+  const pairs = validScorePairs(raceTo)
+  const isFinal = match.stage === 'final'
 
   return (
     <div
@@ -32,7 +34,10 @@ export default function MatchScoreModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold">Ghi tỷ số</h2>
+          <h2 className="text-base font-semibold">
+            {isFinal ? '🏆 Ghi tỷ số Chung kết' : 'Ghi tỷ số'}{' '}
+            <span className="font-normal text-slate-400">(chạm {raceTo})</span>
+          </h2>
           <button
             onClick={onClose}
             className="text-slate-400"

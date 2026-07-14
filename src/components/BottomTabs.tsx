@@ -1,4 +1,4 @@
-export type Tab = 'schedule' | 'leaderboard' | 'settings'
+export type Tab = 'schedule' | 'leaderboard' | 'history' | 'settings'
 
 interface Props {
   active: Tab
@@ -8,6 +8,7 @@ interface Props {
 const TABS: Array<{ id: Tab; label: string; icon: string }> = [
   { id: 'schedule', label: 'Lịch', icon: '📅' },
   { id: 'leaderboard', label: 'BXH', icon: '🏆' },
+  { id: 'history', label: 'Lịch sử', icon: '📜' },
   { id: 'settings', label: 'Cài đặt', icon: '⚙️' },
 ]
 

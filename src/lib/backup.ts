@@ -4,6 +4,7 @@ export interface BackupData {
   version: 1
   exportedAt: number
   code: string | null
+  name: string | null
   config: TournamentConfig
   teams: Team[]
   matches: Match[]
@@ -55,6 +56,8 @@ export function parseBackup(json: string): BackupData | null {
     version: 1,
     exportedAt: typeof b.exportedAt === 'number' ? b.exportedAt : Date.now(),
     code: typeof b.code === 'string' ? b.code : null,
+    // Backup cũ (trước Phase 7) không có tên giải.
+    name: typeof b.name === 'string' ? b.name : null,
     config: b.config as TournamentConfig,
     teams: b.teams as Team[],
     matches: b.matches as Match[],

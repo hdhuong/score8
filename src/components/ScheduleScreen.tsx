@@ -1,7 +1,49 @@
 import { useMemo, useState } from 'react'
 import { useTournamentStore } from '../store/tournamentStore'
 import type { Match } from '../types'
+import { getChampion } from '../lib/standings'
 import MatchScoreModal from './MatchScoreModal'
+import CreateFinalModal from './CreateFinalModal'
+
+function MatchRow({
+  match,
+  nameById,
+  onClick,
+}: {
+  match: Match
+  nameById: Map<string, string>
+  onClick: () => void
+}) {
+  const isDone = match.status === 'completed'
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center justify-between rounded-lg border px-3 py-3 text-left ${
+        isDone ? 'border-slate-700 bg-slate-800/60' : 'border-slate-700 bg-slate-800'
+      }`}
+    >
+      <span className="flex-1 truncate text-sm">{nameById.get(match.team1Id)}</span>
+      <span className="mx-3 shrink-0 text-sm font-semibold">
+        {isDone ? (
+          <span className={match.score1! > match.score2! ? 'text-sky-400' : 'text-slate-300'}>
+            {match.score1}
+          </span>
+        ) : (
+          <span className="text-slate-500">–</span>
+        )}
+        <span className="mx-1 text-slate-600">:</span>
+        {isDone ? (
+          <span className={match.score2! > match.score1! ? 'text-sky-400' : 'text-slate-300'}>
+            {match.score2}
+          </span>
+        ) : (
+          <span className="text-slate-500">–</span>
+        )}
+      </span>
+      <span className="flex-1 truncate text-right text-sm">{nameById.get(match.team2Id)}</span>
+    </button>
+  )
+}
 
 export default function ScheduleScreen() {
   const teams = useTournamentStore((s) => s.teams)
@@ -9,8 +51,11 @@ export default function ScheduleScreen() {
   const config = useTournamentStore((s) => s.config)
   const saveScore = useTournamentStore((s) => s.saveScore)
   const resetMatch = useTournamentStore((s) => s.resetMatch)
+  const createFinal = useTournamentStore((s) => s.createFinal)
 
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
+  const [showCreateFinal, setShowCreateFinal] = useState(false)
+  const [finalError, setFinalError] = useState<string | null>(null)
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>()
@@ -18,15 +63,21 @@ export default function ScheduleScreen() {
     return m
   }, [teams])
 
+  const groupMatches = useMemo(() => matches.filter((m) => m.stage !== 'final'), [matches])
+  const finalMatch = useMemo(() => matches.find((m) => m.stage === 'final') ?? null, [matches])
+
   const rounds = useMemo(() => {
     const byRound = new Map<number, Match[]>()
-    for (const m of matches) {
+    for (const m of groupMatches) {
       const arr = byRound.get(m.round) ?? []
       arr.push(m)
       byRound.set(m.round, arr)
     }
     return [...byRound.entries()].sort((a, b) => a[0] - b[0])
-  }, [matches])
+  }, [groupMatches])
+
+  const allGroupDone = groupMatches.length > 0 && groupMatches.every((m) => m.status === 'completed')
+  const champion = useMemo(() => getChampion(teams, matches), [teams, matches])
 
   const activeMatch = matches.find((m) => m.id === activeMatchId) ?? null
 
@@ -42,70 +93,67 @@ export default function ScheduleScreen() {
     setActiveMatchId(null)
   }
 
-  const completedCount = matches.filter((m) => m.status === 'completed').length
+  const handleCreateFinal = (raceTo: number) => {
+    const res = createFinal(raceTo)
+    if (res.ok) {
+      setShowCreateFinal(false)
+      setFinalError(null)
+    } else {
+      setFinalError(res.error ?? 'Không thể tạo trận chung kết.')
+    }
+  }
+
+  const completedCount = groupMatches.filter((m) => m.status === 'completed').length
 
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col gap-4 p-4 pb-24">
       <div className="flex items-center justify-between pt-2">
         <h1 className="text-lg font-semibold">Lịch thi đấu</h1>
         <span className="text-sm text-slate-400">
-          {completedCount}/{matches.length} trận
+          {completedCount}/{groupMatches.length} trận
         </span>
       </div>
+
+      {champion && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-center">
+          <span className="text-sm font-semibold text-amber-400">
+            🏆 Vô địch: {champion.name}
+          </span>
+        </div>
+      )}
 
       {rounds.map(([round, ms]) => (
         <div key={round} className="flex flex-col gap-2">
           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
             Vòng {round}
           </div>
-          {ms.map((m) => {
-            const isDone = m.status === 'completed'
-            return (
-              <button
-                key={m.id}
-                onClick={() => setActiveMatchId(m.id)}
-                className={`flex items-center justify-between rounded-lg border px-3 py-3 text-left ${
-                  isDone
-                    ? 'border-slate-700 bg-slate-800/60'
-                    : 'border-slate-700 bg-slate-800'
-                }`}
-              >
-                <span className="flex-1 truncate text-sm">
-                  {nameById.get(m.team1Id)}
-                </span>
-                <span className="mx-3 shrink-0 text-sm font-semibold">
-                  {isDone ? (
-                    <span
-                      className={
-                        m.score1! > m.score2! ? 'text-sky-400' : 'text-slate-300'
-                      }
-                    >
-                      {m.score1}
-                    </span>
-                  ) : (
-                    <span className="text-slate-500">–</span>
-                  )}
-                  <span className="mx-1 text-slate-600">:</span>
-                  {isDone ? (
-                    <span
-                      className={
-                        m.score2! > m.score1! ? 'text-sky-400' : 'text-slate-300'
-                      }
-                    >
-                      {m.score2}
-                    </span>
-                  ) : (
-                    <span className="text-slate-500">–</span>
-                  )}
-                </span>
-                <span className="flex-1 truncate text-right text-sm">
-                  {nameById.get(m.team2Id)}
-                </span>
-              </button>
-            )
-          })}
+          {ms.map((m) => (
+            <MatchRow key={m.id} match={m} nameById={nameById} onClick={() => setActiveMatchId(m.id)} />
+          ))}
         </div>
       ))}
+
+      {finalMatch && (
+        <div className="flex flex-col gap-2">
+          <div className="text-xs font-medium uppercase tracking-wide text-amber-400">
+            🏆 Chung kết
+          </div>
+          <MatchRow match={finalMatch} nameById={nameById} onClick={() => setActiveMatchId(finalMatch.id)} />
+        </div>
+      )}
+
+      {allGroupDone && !finalMatch && (
+        <div className="flex flex-col gap-2 rounded-lg border border-dashed border-amber-500/40 p-4 text-center">
+          <p className="text-sm text-slate-300">Vòng bảng đã đấu xong.</p>
+          <button
+            onClick={() => setShowCreateFinal(true)}
+            className="rounded-lg bg-amber-500 py-2.5 text-sm font-medium text-slate-900"
+          >
+            🏆 Tạo trận Chung kết
+          </button>
+          {finalError && <p className="text-xs text-red-400">{finalError}</p>}
+        </div>
+      )}
 
       {activeMatch && (
         <MatchScoreModal
@@ -117,6 +165,10 @@ export default function ScheduleScreen() {
           onReset={handleReset}
           onClose={() => setActiveMatchId(null)}
         />
+      )}
+
+      {showCreateFinal && (
+        <CreateFinalModal onCreate={handleCreateFinal} onClose={() => setShowCreateFinal(false)} />
       )}
     </div>
   )

@@ -1,12 +1,13 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { supabase } from './supabaseClient'
-import type { Match, MatchStatus, Team } from '../types'
+import type { Match, MatchStage, MatchStatus, Team } from '../types'
 
 // ── Kiểu dữ liệu phía Supabase (snake_case) ────────────────────────────────
 interface DbTeam {
   id: string
   code: string
   name: string
+  members: string[] | null
   updated_at: string
 }
 
@@ -19,11 +20,19 @@ interface DbMatch {
   score1: number | null
   score2: number | null
   status: string
+  stage: string | null
+  race_to: number | null
   updated_at: string
 }
 
 function teamToDb(code: string, t: Team): DbTeam {
-  return { id: t.id, code, name: t.name, updated_at: new Date(t.updatedAt).toISOString() }
+  return {
+    id: t.id,
+    code,
+    name: t.name,
+    members: t.members && t.members.length > 0 ? t.members : null,
+    updated_at: new Date(t.updatedAt).toISOString(),
+  }
 }
 
 function matchToDb(code: string, m: Match): DbMatch {
@@ -36,12 +45,19 @@ function matchToDb(code: string, m: Match): DbMatch {
     score1: m.score1,
     score2: m.score2,
     status: m.status,
+    stage: m.stage,
+    race_to: m.raceTo ?? null,
     updated_at: new Date(m.updatedAt).toISOString(),
   }
 }
 
 function dbToTeam(r: DbTeam): Team {
-  return { id: r.id, name: r.name, updatedAt: new Date(r.updated_at).getTime() }
+  return {
+    id: r.id,
+    name: r.name,
+    members: r.members ?? undefined,
+    updatedAt: new Date(r.updated_at).getTime(),
+  }
 }
 
 function dbToMatch(r: DbMatch): Match {
@@ -53,6 +69,9 @@ function dbToMatch(r: DbMatch): Match {
     score1: r.score1,
     score2: r.score2,
     status: r.status as MatchStatus,
+    // Dữ liệu cũ trước migration (Phase 7) không có cột `stage` -> mặc định 'group'.
+    stage: (r.stage as MatchStage) ?? 'group',
+    raceTo: r.race_to ?? undefined,
     updatedAt: new Date(r.updated_at).getTime(),
   }
 }

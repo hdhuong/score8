@@ -22,6 +22,11 @@ export function getStandings(
   matches: Match[],
   config: TournamentConfig,
 ): StandingRow[] {
+  // Chỉ tính trận vòng bảng — trận chung kết không ảnh hưởng BXH.
+  // Dùng `!== 'final'` (không phải `=== 'group'`) để tương thích ngược với
+  // dữ liệu cũ đã persist trước khi có field `stage` (stage sẽ là undefined).
+  matches = matches.filter((m) => m.stage !== 'final')
+
   // 1) Số liệu cơ bản từ các trận đã hoàn thành.
   const map = new Map<string, StandingRow>()
   for (const t of teams) {
@@ -151,4 +156,16 @@ function computeHeadToHead(
   }
 
   return h
+}
+
+/**
+ * Đội vô địch = đội thắng trận `final` đã `completed`. Trả về `null` nếu
+ * chưa có trận chung kết hoặc chưa đấu xong.
+ */
+export function getChampion(teams: Team[], matches: Match[]): Team | null {
+  const final = matches.find((m) => m.stage === 'final' && m.status === 'completed')
+  if (!final || final.score1 == null || final.score2 == null) return null
+
+  const winnerId = final.score1 > final.score2 ? final.team1Id : final.team2Id
+  return teams.find((t) => t.id === winnerId) ?? null
 }

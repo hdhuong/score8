@@ -1,5 +1,3 @@
-import type { TournamentConfig } from '../types'
-
 export interface ScoreValidation {
   valid: boolean
   error?: string
@@ -14,9 +12,9 @@ export interface ScoreValidation {
 export function validateScore(
   score1: number,
   score2: number,
-  config: TournamentConfig,
+  raceTo: number,
 ): ScoreValidation {
-  const N = config.raceTo
+  const N = raceTo
 
   if (!Number.isInteger(score1) || !Number.isInteger(score2)) {
     return { valid: false, error: 'Tỷ số phải là số nguyên.' }
@@ -45,8 +43,8 @@ export function validateScore(
  * Danh sách các tỷ số hợp lệ (dùng cho score picker ở UI).
  * Trả về mảng [thắng, thua] ví dụ [[4,0],[4,1],[4,2],[4,3]].
  */
-export function validScorePairs(config: TournamentConfig): Array<[number, number]> {
-  const N = config.raceTo
+export function validScorePairs(raceTo: number): Array<[number, number]> {
+  const N = raceTo
   const pairs: Array<[number, number]> = []
   for (let loser = 0; loser < N; loser++) {
     pairs.push([N, loser])

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useTournamentStore } from '../store/tournamentStore'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
+import type { TeamEntry } from '../store/tournamentStore'
 
 const MIN_TEAMS = 3
 const MAX_TEAMS = 12
 const DEFAULT_ROWS = 6
+const RACE_TO_OPTIONS = [3, 4, 5, 7]
 
 type Mode = 'create' | 'join'
 
@@ -48,70 +50,125 @@ export default function SetupScreen() {
   )
 }
 
+interface TeamRow {
+  name: string
+  membersText: string
+}
+
 function CreatePanel() {
   const createTournament = useTournamentStore((s) => s.createTournament)
-  const [names, setNames] = useState<string[]>(Array(DEFAULT_ROWS).fill(''))
+  const [tournamentName, setTournamentName] = useState('')
+  const [raceTo, setRaceTo] = useState(4)
+  const [rows, setRows] = useState<TeamRow[]>(
+    Array.from({ length: DEFAULT_ROWS }, () => ({ name: '', membersText: '' })),
+  )
   const [error, setError] = useState<string | null>(null)
 
-  const updateName = (i: number, value: string) => {
-    setNames((prev) => prev.map((n, idx) => (idx === i ? value : n)))
+  const updateRow = (i: number, patch: Partial<TeamRow>) => {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
   }
 
   const addRow = () => {
-    if (names.length >= MAX_TEAMS) return
-    setNames((prev) => [...prev, ''])
+    if (rows.length >= MAX_TEAMS) return
+    setRows((prev) => [...prev, { name: '', membersText: '' }])
   }
 
   const removeRow = (i: number) => {
-    if (names.length <= MIN_TEAMS) return
-    setNames((prev) => prev.filter((_, idx) => idx !== i))
+    if (rows.length <= MIN_TEAMS) return
+    setRows((prev) => prev.filter((_, idx) => idx !== i))
   }
 
   const handleSubmit = () => {
-    const trimmed = names.map((n) => n.trim()).filter((n) => n.length > 0)
+    const trimmedNames = rows.map((r) => r.name.trim())
+    const nonEmpty = trimmedNames.filter((n) => n.length > 0)
 
-    if (trimmed.length < MIN_TEAMS) {
+    if (nonEmpty.length < MIN_TEAMS) {
       setError(`Cần ít nhất ${MIN_TEAMS} đội.`)
       return
     }
-    const lower = trimmed.map((n) => n.toLowerCase())
+    const lower = nonEmpty.map((n) => n.toLowerCase())
     if (new Set(lower).size !== lower.length) {
       setError('Tên đội bị trùng, vui lòng kiểm tra lại.')
       return
     }
 
     setError(null)
-    createTournament(trimmed)
+    const entries: TeamEntry[] = rows
+      .filter((r) => r.name.trim().length > 0)
+      .map((r) => ({
+        name: r.name.trim(),
+        members: r.membersText
+          .split(',')
+          .map((m) => m.trim())
+          .filter((m) => m.length > 0),
+      }))
+
+    createTournament(entries, { raceTo }, tournamentName)
   }
 
   return (
     <div className="flex flex-col gap-5">
+      <div>
+        <label className="mb-1 block text-xs text-slate-500">
+          Tên giải (tùy chọn)
+        </label>
+        <input
+          type="text"
+          value={tournamentName}
+          onChange={(e) => setTournamentName(e.target.value)}
+          placeholder="VD: Giải billiard công ty Q3"
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-sky-500"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs text-slate-500">Luật chạm (race-to)</label>
+        <select
+          value={raceTo}
+          onChange={(e) => setRaceTo(Number(e.target.value))}
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-sky-500"
+        >
+          {RACE_TO_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              Chạm {n}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <p className="text-center text-sm text-slate-400">
         Nhập danh sách đội (khuyến nghị 5-6 đội). Lịch vòng tròn sẽ tự sinh.
       </p>
 
-      <div className="flex flex-col gap-2">
-        {names.map((name, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="w-6 shrink-0 text-right text-sm text-slate-500">
-              {i + 1}
-            </span>
+      <div className="flex flex-col gap-3">
+        {rows.map((row, i) => (
+          <div key={i} className="flex flex-col gap-1.5 rounded-lg border border-slate-700 p-2.5">
+            <div className="flex items-center gap-2">
+              <span className="w-5 shrink-0 text-right text-sm text-slate-500">{i + 1}</span>
+              <input
+                type="text"
+                value={row.name}
+                onChange={(e) => updateRow(i, { name: e.target.value })}
+                placeholder={`Tên đội ${i + 1}`}
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-sky-500"
+              />
+              <button
+                type="button"
+                onClick={() => removeRow(i)}
+                disabled={rows.length <= MIN_TEAMS}
+                className="shrink-0 rounded-lg border border-slate-700 px-2.5 py-2 text-sm text-slate-400 disabled:opacity-30"
+                aria-label="Xoá đội"
+              >
+                ✕
+              </button>
+            </div>
             <input
               type="text"
-              value={name}
-              onChange={(e) => updateName(i, e.target.value)}
-              placeholder={`Tên đội ${i + 1}`}
-              className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none focus:border-sky-500"
+              value={row.membersText}
+              onChange={(e) => updateRow(i, { membersText: e.target.value })}
+              placeholder="Thành viên (cách nhau dấu phẩy, tùy chọn)"
+              className="ml-7 rounded-lg border border-slate-800 bg-slate-800/50 px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-sky-500"
             />
-            <button
-              type="button"
-              onClick={() => removeRow(i)}
-              disabled={names.length <= MIN_TEAMS}
-              className="shrink-0 rounded-lg border border-slate-700 px-2.5 py-2 text-sm text-slate-400 disabled:opacity-30"
-              aria-label="Xoá đội"
-            >
-              ✕
-            </button>
           </div>
         ))}
       </div>
@@ -119,7 +176,7 @@ function CreatePanel() {
       <button
         type="button"
         onClick={addRow}
-        disabled={names.length >= MAX_TEAMS}
+        disabled={rows.length >= MAX_TEAMS}
         className="rounded-lg border border-dashed border-slate-700 py-2 text-sm text-slate-400 disabled:opacity-30"
       >
         + Thêm đội

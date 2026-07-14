@@ -25,6 +25,7 @@ function formatTime(ts: number | null) {
 
 export default function SettingsScreen() {
   const code = useTournamentStore((s) => s.code)
+  const name = useTournamentStore((s) => s.name)
   const teams = useTournamentStore((s) => s.teams)
   const matches = useTournamentStore((s) => s.matches)
   const pendingSync = useTournamentStore((s) => s.pendingSync)
@@ -49,7 +50,7 @@ export default function SettingsScreen() {
   }
 
   const handleExport = () => {
-    downloadBackup({ code, config, teams, matches })
+    downloadBackup({ code, name, config, teams, matches })
   }
 
   const handleImportClick = () => {
@@ -83,6 +84,7 @@ export default function SettingsScreen() {
       <h1 className="pt-2 text-lg font-semibold">Cài đặt</h1>
 
       <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
+        {name && <div className="mb-2 text-sm font-medium text-slate-200">{name}</div>}
         <div className="text-xs uppercase tracking-wide text-slate-500">
           Mã giải
         </div>
@@ -155,6 +157,23 @@ export default function SettingsScreen() {
           <span>
             {completedCount}/{matches.length}
           </span>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
+        <div className="text-xs uppercase tracking-wide text-slate-500">
+          Danh sách đội
+        </div>
+        <div className="mt-2 flex flex-col gap-2">
+          {teams.map((t) => (
+            <div key={t.id} className="text-sm">
+              <span className="font-medium">{t.name}</span>
+              <span className="text-slate-500">
+                {' — '}
+                {t.members && t.members.length > 0 ? t.members.join(', ') : '—'}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

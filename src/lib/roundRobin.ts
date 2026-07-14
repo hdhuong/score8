@@ -40,6 +40,7 @@ export function generateRoundRobin(teamIds: string[]): Match[] {
           score1: null,
           score2: null,
           status: 'pending',
+          stage: 'group',
           updatedAt: Date.now(),
         })
       }
