@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useTournamentStore } from '../store/tournamentStore'
 import { getChampion, getStandings } from '../lib/standings'
 import { shareElementAsImage } from '../lib/shareImage'
+import TeamAnalysisModal from './TeamAnalysisModal'
 
 export default function LeaderboardScreen() {
   const teams = useTournamentStore((s) => s.teams)
@@ -14,9 +15,11 @@ export default function LeaderboardScreen() {
     [teams, matches, config],
   )
   const champion = useMemo(() => getChampion(teams, matches), [teams, matches])
+  const hasFinal = useMemo(() => matches.some((m) => m.stage === 'final'), [matches])
 
   const shareRef = useRef<HTMLDivElement>(null)
   const [sharing, setSharing] = useState(false)
+  const [analyzingTeamId, setAnalyzingTeamId] = useState<string | null>(null)
 
   const handleShare = async () => {
     if (!shareRef.current || sharing) return
@@ -114,6 +117,35 @@ export default function LeaderboardScreen() {
           T: trận đã đấu · W/L: thắng/thua · HS: hiệu số ván · Đ: điểm
         </p>
       </div>
+
+      {!hasFinal && standings.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="px-1 text-xs font-medium text-slate-400">
+            📊 Phân tích khả năng vào vòng trong
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {standings.map((row) => (
+              <button
+                key={row.teamId}
+                onClick={() => setAnalyzingTeamId(row.teamId)}
+                className="rounded-full border border-slate-600 px-3 py-1.5 text-xs text-slate-300 active:bg-slate-700"
+              >
+                {row.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analyzingTeamId && (
+        <TeamAnalysisModal
+          team={teams.find((t) => t.id === analyzingTeamId)!}
+          teams={teams}
+          matches={matches}
+          config={config}
+          onClose={() => setAnalyzingTeamId(null)}
+        />
+      )}
     </div>
   )
 }
