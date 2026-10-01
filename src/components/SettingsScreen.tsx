@@ -34,6 +34,9 @@ export default function SettingsScreen() {
   const resetTournament = useTournamentStore((s) => s.resetTournament)
   const restoreFromBackup = useTournamentStore((s) => s.restoreFromBackup)
   const config = useTournamentStore((s) => s.config)
+  const historyKey = useTournamentStore((s) => s.historyKey)
+  const setHistoryKey = useTournamentStore((s) => s.setHistoryKey)
+  const [keyInput, setKeyInput] = useState('')
 
   const online = useOnlineStatus()
   const completedCount = matches.filter((m) => m.status === 'completed').length
@@ -143,6 +146,36 @@ export default function SettingsScreen() {
           </>
         )}
       </div>
+
+      {isSupabaseConfigured && (
+        <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Mã lịch sử</div>
+          <div className="mt-1 text-2xl font-bold tracking-widest text-sky-400">{historyKey}</div>
+          <p className="mt-1 text-xs text-slate-500">
+            Lịch sử giải được lưu trên cloud theo mã này. Nhập cùng mã trên máy khác để xem chung
+            lịch sử (ai có mã đều xem được).
+          </p>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              placeholder="Nhập mã lịch sử khác"
+              maxLength={6}
+              className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm uppercase"
+            />
+            <button
+              disabled={keyInput.trim().length === 0}
+              onClick={() => {
+                void setHistoryKey(keyInput)
+                setKeyInput('')
+              }}
+              className="rounded-lg border border-slate-600 px-4 text-sm text-slate-300 disabled:opacity-40"
+            >
+              Dùng
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
         <div className="text-xs uppercase tracking-wide text-slate-500">

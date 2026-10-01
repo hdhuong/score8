@@ -15,6 +15,7 @@ import { generateTournamentCode } from '../lib/code'
 import { uid } from '../lib/id'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { pullTournament, pushSnapshot } from '../lib/sync'
+import { pullHistory, pushHistory } from '../lib/historySync'
 import type { BackupData } from '../lib/backup'
 
 export interface SaveResult {
@@ -46,6 +47,8 @@ interface TournamentState {
   teams: Team[]
   matches: Match[]
   history: TournamentRecord[]
+  /** Mã lịch sử: thiết bị nhập cùng mã sẽ dùng chung lịch sử trên cloud. */
+  historyKey: string
   pendingSync: PendingSync
   lastSyncedAt: number | null
 
@@ -71,6 +74,10 @@ interface TournamentState {
   getStandings: () => StandingRow[]
 
   // ── Sync nội bộ (gọi từ syncManager.ts, không gọi trực tiếp từ UI) ──────
+  /** Đổi mã lịch sử rồi đồng bộ lại. */
+  setHistoryKey: (key: string) => Promise<void>
+  /** Hợp nhất lịch sử local với cloud (2 chiều, theo id). An toàn khi gọi lặp lại. */
+  syncHistory: () => Promise<void>
   /** Đẩy các thay đổi đang chờ (pendingSync) lên cloud. An toàn khi gọi lặp lại. */
   flushPendingSync: () => Promise<void>
   /** Nhận 1 team từ realtime, merge theo last-write-wins. */
@@ -96,6 +103,7 @@ export const useTournamentStore = create<TournamentState>()(
           archivedAt: Date.now(),
         }
         set((s) => ({ history: [record, ...s.history] }))
+        void get().syncHistory()
       }
 
       return {
@@ -105,6 +113,7 @@ export const useTournamentStore = create<TournamentState>()(
         teams: [],
         matches: [],
         history: [],
+        historyKey: generateTournamentCode(),
         pendingSync: { teams: [], matches: [] },
         lastSyncedAt: null,
 
@@ -280,6 +289,33 @@ export const useTournamentStore = create<TournamentState>()(
           return getStandings(teams, matches, config)
         },
 
+        setHistoryKey: async (rawKey) => {
+          const key = rawKey.trim().toUpperCase()
+          if (!key) return
+          set({ historyKey: key })
+          await get().syncHistory()
+        },
+
+        syncHistory: async () => {
+          if (!isSupabaseConfigured) return
+          const key = get().historyKey
+          try {
+            const remote = await pullHistory(key)
+            if (!remote) return
+            const localIds = new Set(get().history.map((r) => r.id))
+            const remoteIds = new Set(remote.map((r) => r.id))
+            const incoming = remote.filter((r) => !localIds.has(r.id))
+            if (incoming.length > 0) {
+              set((s) => ({
+                history: [...s.history, ...incoming].sort((a, b) => b.archivedAt - a.archivedAt),
+              }))
+            }
+            await pushHistory(key, get().history.filter((r) => !remoteIds.has(r.id)))
+          } catch {
+            // Thử lại ở lần sync sau (online / interval trong syncManager.ts).
+          }
+        },
+
         flushPendingSync: async () => {
           const { code, teams, matches, pendingSync } = get()
           if (!code || !isSupabaseConfigured) return
@@ -347,6 +383,7 @@ export const useTournamentStore = create<TournamentState>()(
         teams: s.teams,
         matches: s.matches,
         history: s.history,
+        historyKey: s.historyKey,
         pendingSync: s.pendingSync,
         lastSyncedAt: s.lastSyncedAt,
       }),

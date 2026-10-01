@@ -73,3 +73,20 @@ begin
     alter publication supabase_realtime add table matches;
   end if;
 end $$;
+
+-- Lịch sử giải: mỗi bản ghi lưu nguyên TournamentRecord dạng jsonb.
+-- `owner` là "mã lịch sử" 6 ký tự (capability token như `code`): các thiết bị
+-- nhập cùng mã sẽ thấy cùng lịch sử. Chỉ insert/select (bản ghi lưu trữ bất biến).
+create table if not exists history_records (
+  id uuid primary key,
+  owner text not null,
+  payload jsonb not null,
+  archived_at timestamptz not null default now()
+);
+create index if not exists history_records_owner_idx on history_records (owner);
+
+alter table history_records enable row level security;
+drop policy if exists "public read history" on history_records;
+create policy "public read history" on history_records for select using (true);
+drop policy if exists "public write history" on history_records;
+create policy "public write history" on history_records for insert with check (true);

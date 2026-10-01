@@ -38,11 +38,15 @@ export function initSyncManager() {
   })
 
   void useTournamentStore.getState().flushPendingSync()
+  void useTournamentStore.getState().syncHistory()
   window.addEventListener('online', () => {
     void useTournamentStore.getState().flushPendingSync()
+    void useTournamentStore.getState().syncHistory()
   })
   // Dự phòng: 'online' event không phải lúc nào cũng bắn (vd Safari trên vài mạng).
   setInterval(() => {
-    if (navigator.onLine) void useTournamentStore.getState().flushPendingSync()
+    if (!navigator.onLine) return
+    void useTournamentStore.getState().flushPendingSync()
+    void useTournamentStore.getState().syncHistory()
   }, 20000)
 }
