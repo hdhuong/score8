@@ -49,6 +49,8 @@ interface TournamentState {
   history: TournamentRecord[]
   /** Mã lịch sử: thiết bị nhập cùng mã sẽ dùng chung lịch sử trên cloud. */
   historyKey: string
+  /** Giải đang hoạt động đã được lưu vào lịch sử (khi chung kết xong) -> không lưu lại. */
+  archivedActive: boolean
   pendingSync: PendingSync
   lastSyncedAt: number | null
 
@@ -91,8 +93,8 @@ export const useTournamentStore = create<TournamentState>()(
     (set, get) => {
       /** Lưu giải đang hoạt động vào lịch sử (nếu có đội) trước khi bị thay thế. */
       const archiveActiveIfAny = () => {
-        const { teams, name, code, config, matches } = get()
-        if (teams.length === 0) return
+        const { teams, name, code, config, matches, archivedActive } = get()
+        if (teams.length === 0 || archivedActive) return
         const record: TournamentRecord = {
           id: uid(),
           name: name ?? defaultTournamentName(),
@@ -102,8 +104,16 @@ export const useTournamentStore = create<TournamentState>()(
           matches,
           archivedAt: Date.now(),
         }
-        set((s) => ({ history: [record, ...s.history] }))
+        set((s) => ({ history: [record, ...s.history], archivedActive: true }))
         void get().syncHistory()
+      }
+
+      /** Chung kết đã đấu xong -> giải kết thúc, lưu vào lịch sử ngay. */
+      const archiveIfFinished = () => {
+        const { matches } = get()
+        if (matches.some((m) => m.stage === 'final' && m.status === 'completed')) {
+          archiveActiveIfAny()
+        }
       }
 
       return {
@@ -114,6 +124,7 @@ export const useTournamentStore = create<TournamentState>()(
         matches: [],
         history: [],
         historyKey: generateTournamentCode(),
+        archivedActive: false,
         pendingSync: { teams: [], matches: [] },
         lastSyncedAt: null,
 
@@ -140,6 +151,7 @@ export const useTournamentStore = create<TournamentState>()(
             config: { ...DEFAULT_CONFIG, ...config },
             teams,
             matches,
+            archivedActive: false,
             pendingSync: {
               teams: teams.map((t) => t.id),
               matches: matches.map((m) => m.id),
@@ -168,6 +180,7 @@ export const useTournamentStore = create<TournamentState>()(
             teams: result.teams,
             matches: result.matches,
             pendingSync: { teams: [], matches: [] },
+            archivedActive: false,
             lastSyncedAt: Date.now(),
           })
           return { ok: true }
@@ -193,6 +206,7 @@ export const useTournamentStore = create<TournamentState>()(
               matches: [...new Set([...s.pendingSync.matches, matchId])],
             },
           }))
+          archiveIfFinished()
           void get().flushPendingSync()
           return { ok: true }
         },
@@ -220,6 +234,7 @@ export const useTournamentStore = create<TournamentState>()(
             config: DEFAULT_CONFIG,
             teams: [],
             matches: [],
+            archivedActive: false,
             pendingSync: { teams: [], matches: [] },
             lastSyncedAt: null,
           })
@@ -237,6 +252,7 @@ export const useTournamentStore = create<TournamentState>()(
               teams: data.teams.map((t) => t.id),
               matches: data.matches.map((m) => m.id),
             },
+            archivedActive: false,
             lastSyncedAt: null,
           })
           void get().flushPendingSync()
@@ -384,6 +400,7 @@ export const useTournamentStore = create<TournamentState>()(
         matches: s.matches,
         history: s.history,
         historyKey: s.historyKey,
+        archivedActive: s.archivedActive,
         pendingSync: s.pendingSync,
         lastSyncedAt: s.lastSyncedAt,
       }),
